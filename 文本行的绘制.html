@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <style type="text/css">
+            #canvas{
+                border:1px solid cornflowerblue;
+                position: absolute;
+                left:150px;
+                top:100px;
+                background: #eee;
+                cursor: pointer;
+                -webkit-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                -moz-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+            }
+
+        </style>
+        <script type="text/javascript" src="canvasHelper.js"></script>
+    </head>
+    <body>
+        Font:<select name="" id="fontSelect">
+            <option value="Arial">Arial</option>
+            <option value="Verdana">Verdana</option>
+            <option value="Sans-serif">Sans-serif</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Serif">Serif</option>
+            <option value="Times New Roman">Times New Roman</option>
+        </select>
+        Size:<input type="number" min = '1' max = '200' value="128" id="sizeSelect">
+        Text stroke color:<select id="strokeStyleSelect">
+                <option value="red">red</option>
+                <option value="green">green</option>
+                <option value="blue">blue</option>
+                <option value="orange">orange</option>
+                <option value="cornflowerblue">cornflowerblue</option>
+                <option value="goldenrod">goldenrod</option>
+                <option value="purple">purple</option>
+            </select>
+        Text fill color:<select id="fillStyleSelect">
+                <option value="red">red</option>
+                <option value="green">green</option>
+                <option value="blue">blue</option>
+                <option value="orange">orange</option>
+                <option value="cornflowerblue">cornflowerblue</option>
+                <option value="goldenrod">goldenrod</option>
+                <option value="purple">purple</option>
+            </select>
+            <canvas id="canvas" width='600' height='420'></canvas>
+    </body>
+    <script type="text/javascript">
+        var canvas = document.getElementById('canvas'),
+            context = canvas.getContext('2d'),
+
+            fontSelect = document.getElementById('fontSelect'),
+            sizeSelect = document.getElementById('sizeSelect'),
+            strokeStyleSelect = document.getElementById('strokeStyleSelect'),
+            fillStyleSelect = document.getElementById('fillStyleSelect'),
+
+            GRID_STROKE_STYLE = 'lightgray',
+            GRID_HORIZONTAL_SPACING = 10,
+            GRID_VERTICAL_SPACING = 10,
+
+            cursor = new TextCursor(),
+
+            line,
+            imageData;
+
+            function setFont(){//设置文本样式
+                context.font = sizeSelect.value + 'px ' + fontSelect.value;
+            }
+
+            canvas.onmousedown = function(e){
+                var loc = windowToCanvas(canvas,e.clientX,e.clientY),
+                    fontHeight = context.measureText('W').width;
+                fontHeight += fontHeight/6;
+
+                line = new TextLine(loc.x,loc.y);
+                imageData = cursor.moveCursor(context,imageData,loc);
+            }
+
+            fillStyleSelect.onchange = function(e){
+                cursor.fillStyle = fillStyleSelect.value;
+                context.fillStyle = fillStyleSelect.value;
+            }
+
+            strokeStyleSelect.onchange = function(e){
+                cursor.strokeStyle = strokeStyleSelect.value;
+                context.strokeStyleSelect = strokeStyleSelect.value;
+            }
+
+            document.onkeydown = function(e){
+                if(e.keyCode === 8 || e.keyCode === 13){
+                    e.preventDefault();
+                }
+
+                if(e.keyCode === 8 ){//退格键
+                    context.save();
+
+                    line.earse(context,imageData);
+                    line.removeCharacterBeforeCaret();
+
+                    var loc = {
+                                x:line.left + line.getWidth(context),
+                                y:line.bottom
+                           }
+                    imageData = cursor.moveCursor(context,imageData,loc);
+
+                    line.draw(context);
+                    context.restore();
+                }
+            }
+
+            document.onkeypress = function(e){
+                var key = String.fromCharCode(e.which);
+
+                if(e.keyCode !== 8 && !e.ctrlKey && !e.metaKey){
+                    e.preventDefault();
+
+                    context.save();
+
+                    line.earse(context,imageData);
+                    line.insert(key);
+
+                    var loc = {
+                                x:line.left + line.getWidth(context),
+                                y:line.bottom
+                           }
+                    imageData = cursor.moveCursor(context,imageData, loc);
+
+                    context.shadowColor = 'rgba(0,0,0,.5)';
+                    context.shadowOffsetX = 1;
+                    context.shadowOffsetY = 1;
+                    context.shadowBlur = 2;
+
+                    line.draw(context);
+                    context.restore();
+                }
+            }
+
+            fontSelect.onchange = setFont;
+            sizeSelect.onchange = setFont;
+
+            cursor.fillStyle = fillStyleSelect.value;
+            cursor.strokeStyle = strokeStyleSelect.value;
+
+            context.fillStyle = fillStyleSelect.value;
+            context.strokeStyleSelect = strokeStyleSelect.value;
+            context.lineWidth = 2;
+
+            setFont();
+            imageData = saveDrawingSurface(context,canvas);
+    </script>
+</html>

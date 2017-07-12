@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <style type="text/css">
+            #canvas{
+                border:1px solid cornflowerblue;
+                position: absolute;
+                left:150px;
+                top:100px;
+                background: #eee;
+                cursor: pointer;
+                -webkit-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                -moz-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+            }
+
+        </style>
+        <script type="text/javascript" src="canvasHelper.js"></script>
+    </head>
+    <body>
+            <button type="" id="sunglassButton">墨镜滤镜</button>  
+            <canvas id="canvas" width='600' height='420'></canvas>
+    </body>
+    <script type="text/javascript">
+        var canvas = document.getElementById('canvas'),
+            context = canvas.getContext('2d'),
+            image = new Image(),
+            offscreenCanvas = document.createElement('canvas'),
+            offscreenContext = offscreenCanvas.getContext('2d'),
+            sunglassButton = document.getElementById('sunglassButton'),
+            sunglassesOn = false,
+            webWork = new Worker('webWork.js'),
+            LENS_RADIUS = canvas.width/5;
+
+            function drawLenses(leftLensLocation,rightLensLocation){
+                context.save();
+                context.beginPath();
+                context.arc(leftLensLocation.x,leftLensLocation.y,LENS_RADIUS,0,Math.PI*2,false);
+                context.stroke();
+                //moveTo(rightLensLocation.x,rightLensLocation.y);
+                context.arc(rightLensLocation.x,rightLensLocation.y,LENS_RADIUS,0,Math.PI*2,false);
+                context.stroke();
+                context.clip();
+                context.drawImage(offscreenCanvas,0,0,canvas.width,canvas.height);
+                context.restore();
+            }
+
+            function drawWire(center){
+                context.beginPath();
+                context.moveTo(center.x - LENS_RADIUS/4,center.y - LENS_RADIUS/2);
+                context.quadraticCurveTo(center.x,center.y - LENS_RADIUS +20,
+                                         center.x + LENS_RADIUS/4,
+                                         center.y - LENS_RADIUS/2);;
+                context.stroke();
+
+            }
+
+            function drawConnectors(center){
+                context.beginPath();
+                context.fillStyle = 'silver';
+                context.strokeStyle = 'rgba(0,0,0,0.4)';
+                context.lineWidth = 2;
+
+                context.arc(center.x - LENS_RADIUS/4,center.y - LENS_RADIUS/2,4,0,Math.PI*2,false);
+                context.fill();
+                context.stroke();
+
+                context.beginPath();
+                context.arc(center.x + LENS_RADIUS/4,center.y - LENS_RADIUS/2,4,0,Math.PI*2,false);
+                context.fill();
+                context.stroke();
+            }
+
+            sunglassButton.onclick = function(){
+                if(sunglassesOn)
+                {
+                    sunglassButton.value = 'Sunglasses';
+                    drawInColor();
+                    sunglassesOn = false;
+                }
+                else
+                {
+                    sunglassButton.value = 'original picture';
+                    putSunglassesOn();
+                    sunglassesOn = true;
+                }
+            }
+
+            function putSunglassesOn(){
+                var imagedata,
+                    center = {
+                        x:canvas.width/2,
+                        y:canvas.height/2
+                    },
+                    leftLensLocation = {
+                        x:center.x - LENS_RADIUS - 10,
+                        y:center.y
+                    },
+                    rightLensLocation = {
+                        x:center.x + LENS_RADIUS +10,
+                        y:center.y
+                    };
+
+                imagedata = context.getImageData(0,0,canvas.width,canvas.height);
+
+
+                webWork.postMessage(imagedata);
+                webWork.onmessage = function(event){
+                    offscreenContext.putImageData(event.data,0,0);
+                    drawLenses(leftLensLocation,rightLensLocation);
+                    drawWire(center);
+                    drawConnectors(center);
+                }
+            }
+
+            function drawInColor(){
+                context.drawImage(image,0,0,image.width,image.height,0,0,canvas.width,canvas.height);
+            }
+
+            offscreenCanvas.width = canvas.width;
+            offscreenCanvas.height = canvas.height;
+
+            image.src= "1.jpg";
+            image.onload = function(){
+                drawInColor();
+            }
+    </script>
+</html>

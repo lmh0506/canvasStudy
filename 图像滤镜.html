@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <style type="text/css">
+            #canvas{
+                border:1px solid cornflowerblue;
+                position: absolute;
+                left:150px;
+                top:100px;
+                background: #eee;
+                cursor: pointer;
+                -webkit-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                -moz-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+            }
+
+        </style>
+        <script type="text/javascript" src="canvasHelper.js"></script>
+    </head>
+    <body>
+            <button type="" id="negativeButton">负片滤镜</button>
+            <label for="drawInColorToggleCheckbox">黑白滤镜</label>
+                <input type="checkbox" id="drawInColorToggleCheckbox" name="" value="" checked>
+            <button type="" id="embossButton">浮雕滤镜</button>
+            <button type="" id="sunglassButton">墨镜滤镜</button>
+            
+            
+            <canvas id="canvas" width='600' height='420'></canvas>
+    </body>
+    <script type="text/javascript">
+        var canvas = document.getElementById('canvas'),
+            context = canvas.getContext('2d'),
+            image = new Image(),
+            drawInColorToggleCheckbox = document.getElementById('drawInColorToggleCheckbox'),
+            negativeButton = document.getElementById('negativeButton'),
+            sunglassButton = document.getElementById('sunglassButton')
+            embossButton = document.getElementById('embossButton'),
+            webWork = new Worker('webWork.js');
+
+            negativeButton.onclick = function(){
+                var imagedata = context.getImageData(0,0,canvas.width,canvas.height),
+                    data = imagedata.data;
+
+                for(var i = 0;i<=data.length;i+=4)
+                {
+                    data[i] = 255 - data[i];
+                    data[i+1] = 255 - data[i+1];
+                    data[i+2] = 255 - data[i+2];
+                }
+                context.putImageData(imagedata,0,0);
+            }
+
+            drawInColorToggleCheckbox.onclick = function(){
+                drawInColorToggleCheckbox.checked ? drawInColor() : drawInBlackAndWhite();
+            }
+
+            embossButton.onclick = function(){
+                var imagedata = context.getImageData(0,0,canvas.width,canvas.height),
+                    width = imagedata.width,
+                    data = imagedata.data;
+               /* for(var i = 0;i< data.length;i++)
+                {
+                    if((i+1)%4 !== 0)
+                    {
+                        data[i] = 255/2
+                                + 2 * data[i]
+                                - data[i + 4]
+                                - data[i + width * 4];
+                    }
+                }*/
+
+                for(var i =0 ;i<data.length;i++)
+                {
+                    if(i <= data.length - width*4)
+                    {
+                        if((i+1)%4 !== 0)
+                        {
+                            if((i+4) % (width*4) == 0)
+                            {
+                                data[i] = data[i-4];
+                                data[i+1] = data[i-3];
+                                data[i+2] = data[i-2];
+                                data[i+3] = data[i-1];
+                                i+=4;
+                            }
+                            else
+                            {
+                                data[i] = 255/2
+                                        + 2 * data[i]
+                                        - data[i+4]
+                                        - data[i+width*4];
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if((i+1)%4 !== 0)
+                        {
+                            data[i] = data[i - width * 4];
+                        }
+                    }
+                }
+                context.putImageData(imagedata,0,0);
+            }
+
+            sunglassButton.onclick = function(){
+                putSunglassesOn();
+            }
+
+            function putSunglassesOn(){
+                webWork.postMessage(context.getImageData(0,0,canvas.width,canvas.height));
+                webWork.onmessage = function(event){
+                    context.putImageData(event.data,0,0);
+                }
+            }
+            function drawInBlackAndWhite(){
+                var data = undefined,
+                    i = 0,
+                    imagedata = context.getImageData(0,0,canvas.width,canvas.height);
+                data = imagedata.data;
+
+                for(var i = 0; i<data.length-4;i+=4)
+                {
+                    average = (data[i] + data[i+1] + data[i+2])/3;
+                    data[i] = average;
+                    data[i+1] = average;
+                    data[i+2] = average;
+                }
+                context.putImageData(imagedata,0,0);
+            }
+
+            function drawInColor(){
+                context.drawImage(image,0,0,image.width,image.height,0,0,canvas.width,canvas.height);
+            }
+            image.src= "1.jpg";
+            image.onload = function(){
+                drawInColor();
+            }
+    </script>
+</html>

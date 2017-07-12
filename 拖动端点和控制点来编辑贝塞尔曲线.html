@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <style type="text/css">
+            body{
+                background: #eee;
+            }
+            .floatingControls{
+                position: absolute;
+                left: 150px;
+                top:100px;
+                width:300px;
+                padding: 20px;
+                border: thin solid rgba(0,0,0,.3);
+                background: rgba(0,0,200,.1);
+                color:blue;
+                font:14px Arial;
+                -webkit-box-shadow:rgba(0,0,0,.2) 6px 6px 8px;
+                -moz-box-shadow:rgba(0,0,0,.2) 6px 6px 8px;
+                box-shadow:rgba(0,0,0,.2) 6px 6px 8px;
+                display: none;
+            }
+
+            .floatingControls p{
+                margin-top: 0px;
+                margin-bottom: 20px;
+            }
+            #controls{
+                position: absolute;
+                left: 25px;
+                top:25px;
+            }
+            #canvas{
+                background: #fff;
+                cursor: pointer;
+                margin-left: 10px;
+                margin-top: 10px;
+                -webkit-box-shadow:4px 4px 8px rgba(0,0,0,.5);
+                -moz-box-shadow:4px 4px 8px rgba(0,0,0,.5);
+                box-shadow:4px 4px 8px rgba(0,0,0,.5);
+            }
+        </style>
+        <script type="text/javascript" src="canvasHelper.js"></script>
+    </head>
+    <body>
+        <canvas id="canvas" width='605' height='400'></canvas>
+        <div id="controls">
+            Stroke color:<select id="strokeStyleSelect">
+                <option value="red">red</option>
+                <option value="green">green</option>
+                <option value="blue">blue</option>
+                <option value="orange">orange</option>
+                <option value="cornflowerblue">cornflowerblue</option>
+                <option value="goldenrod">goldenrod</option>
+                <option value="purple">purple</option>
+            </select>
+            Guidwires:
+            <input type="checkbox" id="guidewireCheckbox" checked name="" value="">
+            <input type="button" name="" id="earseAllButton" value="Earse All">
+        </div>
+
+        <div id="instructions" class="floatingControls">
+            <p>拖动曲线的终点和控制点来改变曲线的形状</p>
+            <p>当你完成拖动结束和控制点点击外面的点，以确定曲线</p>
+            <input type="button" name="" id="instructionsOkayButton" value="Okay" autofocus>
+            <input type="button" name="" id="instructionsNoMoreButton" value="do not show these instructions again">
+        </div>
+    </body>
+    <script type="text/javascript">
+        var canvas = document.getElementById('canvas'),
+            context = canvas.getContext('2d'),
+            earseAllButton = document.getElementById('earseAllButton'),
+            guidewireCheckbox = document.getElementById('guidewireCheckbox'),
+            strokeStyleSelect = document.getElementById('strokeStyleSelect'),
+            instructions = document.getElementById('instructions'),
+            instructionsOkayButton = document.getElementById('instructionsOkayButton'),
+            instructionsNoMoreButton = document.getElementById('instructionsNoMoreButton'),
+
+            showInstructions = true,
+
+            AXIS_MARGIN = 40,
+            HORIZONTAL_TICK_SPACING = 10,
+            VERTICAL_TICK_SPACING = 10,
+            TICK_SIZE = 10,
+
+            AXIS_ORIGIN = {x : AXIS_MARGIN, y : canvas.height - AXIS_MARGIN},
+            AXIS_TOP = AXIS_MARGIN,
+            AXIS_RIGHT = canvas.width - AXIS_MARGIN,
+            AXIS_WIDTH = AXIS_RIGHT - AXIS_ORIGIN.x,
+            AXIS_HEIGHT = AXIS_ORIGIN.y - AXIS_TOP,
+
+            NUM_VERTICAL_TICKS = AXIS_HEIGHT / VERTICAL_TICK_SPACING,
+            NUM_HORIZONTAL_TICKS = AXIS_WIDTH / HORIZONTAL_TICK_SPACING,
+
+            GRID_STROKE_STYLE = 'lightblue',
+            GRID_SPACING = 10,
+
+            CONTROL_POINT_RADIUS = 5,
+            CONTROL_POINT_STROKE_STYLE = 'blue',
+            CONTROL_POINT_FILL_STYLE = 'rgba(255,255,0,.5)',
+
+            END_POINT_STROKE_STYLE = 'navy',
+            END_POINT_FILL_STYLE = 'rgba(0,255,0,.5)',
+
+            GUIDEWIRE_STROKE_STYLE = 'rgba(0,0,230,.4)',
+
+            drawingImageDate,//存储图片数据  当鼠标按下时
+
+            mousedown = {},  //存储上次鼠标点击的坐标
+            rubberbandRect = {},//鼠标移动时不断的更新
+
+            dragging = false,//如果真  鼠标能够拖动
+            draggingPoint = false,//端点或控制点在拖动
+
+            endPoints = [{},{}],//端点坐标{x,y}
+            controlPoints = [{},{}],//控制点坐标{x,y}
+            editing = false,//如果真   编辑曲线
+
+            guidewires = guidewireCheckbox.checked;
+
+
+            //橡皮筋式拖动
+            function updateRubberbandRectingangle(loc){//更新橡皮筋矩形框数据
+                rubberbandRect.width = Math.abs(loc.x - mousedown.x);
+                rubberbandRect.height = Math.abs(loc.y - mousedown.y);
+
+                rubberbandRect.left = loc.x > mousedown.x ? mousedown.x : loc.x;
+                rubberbandRect.top = loc.y > mousedown.y ?mousedown.y :loc.y; 
+            }
+
+            function drawBezierCurve(){//绘制三次方贝塞尔曲线
+                context.beginPath();
+                context.moveTo(endPoints[0].x,endPoints[0].y);
+                context.bezierCurveTo(controlPoints[0].x,controlPoints[0].y,
+                                      controlPoints[1].x,controlPoints[1].y,
+                                      endPoints[1].x,endPoints[1].y);
+                context.stroke(); 
+            }
+
+            function updateEndAndControlPoints(){//更新端点与控制点坐标
+                endPoints[0].x = rubberbandRect.left;
+                endPoints[0].y = rubberbandRect.top;
+
+                endPoints[1].x = rubberbandRect.left + rubberbandRect.width;
+                endPoints[1].y = rubberbandRect.top + rubberbandRect.height;//橡皮筋矩形框的对角顶点为曲线的两个端点
+
+                controlPoints[0].x = rubberbandRect.left;
+                controlPoints[0].y = rubberbandRect.top + rubberbandRect.height;
+
+                controlPoints[1].x = rubberbandRect.left = rubberbandRect.width;
+                controlPoints[1].y = rubberbandRect.top;//控制点为橡皮筋矩形框另外两个对角顶点
+            }
+
+            function drawRubberbandShape(){//橡皮筋式绘制贝塞尔曲线
+                updateEndAndControlPoints();
+                drawBezierCurve();
+            }
+
+            function updateRubberband(loc){//更新橡皮筋矩形框数据并绘制曲线
+                updateRubberbandRectingangle(loc);
+                drawRubberbandShape();
+            }
+
+            //辅助坐标轴
+            function drawHorizontalGuidewire(y){//横坐标
+                context.beginPath();
+                context.moveTo(0,y+0.5);
+                context.lineTo(context.canvas.width,y+0.5);
+                context.stroke();
+            }
+
+            function drawVerticalGuidewire(x){//纵坐标
+                context.beginPath();
+                context.moveTo(x+0.5,0);
+                context.lineTo(x+0.5,context.canvas.height);
+                context.stroke();
+            }
+
+            function drawGuidewires(x,y){//绘制辅助坐标轴
+                context.save();
+                context.strokeStyle = GUIDEWIRE_STROKE_STYLE;
+                context.lineWidth = 0.5;
+                drawVerticalGuidewire(x);
+                drawHorizontalGuidewire(y);
+                context.restore();
+            }
+
+            function drawControlPoint(index){//绘制控制点
+                context.beginPath();
+                context.arc(controlPoints[index].x,controlPoints[index].y,
+                            CONTROL_POINT_RADIUS,0,Math.PI * 2,false);
+                context.stroke();
+                context.fill();
+            }
+
+            function drawControlPoints(){//绘制两个控制点
+                context.save();
+                context.strokeStyle = CONTROL_POINT_STROKE_STYLE;
+                context.fillStyle = CONTROL_POINT_FILL_STYLE;
+                drawControlPoint(0);
+                drawControlPoint(1);
+                context.restore();
+            }
+
+            function drawEndPoint(index){
+                context.beginPath();
+                context.arc(endPoints[index].x,endPoints[index].y,
+                            CONTROL_POINT_RADIUS,0,Math.PI*2,false);
+                context.stroke();
+                context.fill();
+            }
+
+            function drawEndPoints(){//绘制两个端点
+                context.save();
+                context.strokeStyle = END_POINT_STROKE_STYLE;
+                context.fillStyle = END_POINT_FILL_STYLE;
+
+                drawEndPoint(0);
+                drawEndPoint(1);
+
+                context.restore();
+            }
+
+            function drawControlAndEndPoints(){//绘制所有控制点和端点
+                drawControlPoints();
+                drawEndPoints();
+            }
+
+            function cursorInEndPoint(loc){//判断鼠标是否点击在端点上  并返回该点
+                var pt;
+                endPoints.forEach(function(point){
+                    context.beginPath();
+                    context.arc(point.x,point.y,
+                                CONTROL_POINT_RADIUS,0,Math.PI*2,false);
+                    if(context.isPointInPath(loc.x,loc.y)){
+                        pt = point;
+                    }
+                });
+                return pt;
+            }
+
+            function cursorInControlPoint(loc){//判断鼠标是否点击在控制点上  并返回该点
+                var pt;
+                controlPoints.forEach(function(point){
+                    context.beginPath();
+                    context.arc(point.x,point.y,
+                                CONTROL_POINT_RADIUS,0,Math.PI*2,false);
+                    if(context.isPointInPath(loc.x,loc.y)){
+                        pt = point;
+                    }
+                })
+                return pt;
+            }
+
+            function updateDraggingPoint(loc){//更新拖动点坐标
+                draggingPoint.x = loc.x;
+                draggingPoint.y = loc.y;
+            }
+
+            //画布事件开始
+            canvas.onmousedown = function(e){
+                var loc = windowToCanvas(canvas,e.clientX,e.clientY);
+                e.preventDefault();
+
+                if(!editing){
+                    drawingImageDate = saveDrawingSurface(context,canvas);
+                    mousedown.x = loc.x;
+                    mousedown.y = loc.y;
+                    updateRubberbandRectingangle(loc);
+                    dragging = true;
+                }
+                else{
+                    draggingPoint = cursorInControlPoint(loc);//保存拖动点坐标不在控制点中就在端点中
+                    if(!draggingPoint){
+                        draggingPoint = cursorInEndPoint(loc);
+                    }
+                }
+            }
+
+            canvas.onmousemove = function(e){
+                var loc = windowToCanvas(canvas,e.clientX,e.clientY);
+
+                if(dragging || draggingPoint){
+                    e.preventDefault();
+                    restoreDrawingSurface(context,drawingImageDate);
+                    if(guidewires){
+                        drawGuidewires(loc.x,loc.y);
+                    }
+                }
+
+                if(dragging){
+                    updateRubberband(loc);
+                    drawControlAndEndPoints();
+                }
+                else if(draggingPoint){
+                    updateDraggingPoint(loc);
+                    drawControlAndEndPoints();
+                    drawBezierCurve();
+                }
+            }
+
+            canvas.onmouseup = function(e){
+                var loc = windowToCanvas(canvas,e.clientX,e.clientY);
+                restoreDrawingSurface(context,drawingImageDate);
+
+                if(!editing){
+                    updateRubberband(loc);
+                    drawControlAndEndPoints();
+                    dragging = false;
+                    editing = true;
+                    if(showInstructions){
+                        instructions.style.display = 'block';
+                    }
+
+                }else{
+                    if(draggingPoint)
+                        drawControlAndEndPoints();
+                    else
+                        editing = false;
+                    drawBezierCurve();
+                    draggingPoint = undefined;
+                }
+            }
+
+            earseAllButton.onclick = function(e){
+                context.clearRect(0,0,canvas.width,canvas.height);
+
+                drawingImageDate = saveDrawingSurface(context,canvas);
+
+                editing = false;
+                dragging = false;
+                draggingPoint = undefined;
+            }
+
+            strokeStyleSelect.onchange = function(e){
+                context.strokeStyle = strokeStyleSelect.value;
+            }
+            guidewireCheckbox.onchange = function(e){
+                guidewires = guidewireCheckbox.checked;
+            }
+
+            instructionsOkayButton.onclick = function(e){
+                instructions.style.display = 'none';
+            }
+            instructionsNoMoreButton.onclick = function(e){
+                instructions.style.display = 'none';
+                showInstructions = false;
+            }
+            context.strokeStyle = strokeStyleSelect.value;
+
+    </script>
+</html>

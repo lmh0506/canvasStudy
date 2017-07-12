@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <style type="text/css">
+            #canvas{
+                border:1px solid cornflowerblue;
+                position: absolute;
+                left:150px;
+                top:100px;
+                background: #eee;
+                cursor: pointer;
+                -webkit-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                -moz-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+            }
+
+        </style>
+        <script type="text/javascript" src="canvasHelper.js"></script>
+    </head>
+    <body ondragstart="return false">
+            <canvas id="canvas" width='600' height='420'></canvas>
+    </body>
+    <script type="text/javascript">
+        var canvas = document.getElementById('canvas'),
+            context = canvas.getContext('2d'),
+            image = new Image();
+
+        canvas.addEventListener('dragenter',function(e){
+            e.preventDefault();
+            e.dataTransfer.effectAllowed = 'copy';
+        },false);
+        canvas.addEventListener('dragover',function(e){
+            e.preventDefault();
+        },false);
+
+        window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
+
+        canvas.addEventListener('drop',function(e){
+            e.preventDefault();
+            e.stopPropagation();
+            var file = e.dataTransfer.files[0];
+
+            window.requestFileSystem(window.TEMPORRY,5*1024*1024,
+                function(fs){
+                    fs.root.getFile(file.name,{create:true},
+                        function(fileEntry){
+                            fileEntry.createWriter(function(writer){
+                                writer.write(file);
+                            });
+                            image.src = fileEntry.toURL();
+                        },
+                        function(e){
+                            alert(e.code);
+                        });
+                },
+                function(e){
+                    alert(e.code);
+                })
+        })
+
+        image.src= "1.jpg";
+        image.onload = function(){
+            context.drawImage(image,0,0,image.width,image.height,0,0,canvas.width,canvas.height);
+        }
+
+    </script>
+</html>

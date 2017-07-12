@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <style type="text/css">
+            #canvas{
+                border:1px solid cornflowerblue;
+                position: absolute;
+                left:150px;
+                top:100px;
+                background: #eee;
+                cursor: pointer;
+                -webkit-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                -moz-box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+                box-shadow:rgba(200,200,255,.9) 5px 5px 10px;
+            }
+
+        </style>
+        <script type="text/javascript" src="canvasHelper.js"></script>
+    </head>
+    <body>
+    可从桌面拖拽图片到画布中
+            <canvas id="canvas" width='600' height='420'></canvas>
+    </body>
+    <script type="text/javascript">
+        var canvas = document.getElementById('canvas'),
+            context = canvas.getContext('2d'),
+            magnifyGlassX,
+            magnifyGlassY,
+            magnifyingGlassRadius = 100,
+            magnificationScale = 3,
+            image = new Image(),
+            maginfyRectangle = {
+                x:0,
+                y:0,
+                width:magnifyingGlassRadius*2,
+                height:magnifyingGlassRadius*2
+            },
+            imagedata;
+
+        function earseMagnifyingGlass(){
+            if(imagedata!=undefined || imagedata!=null){            
+                context.putImageData(imagedata,maginfyRectangle.x,maginfyRectangle.y);
+            }
+        }
+
+        function drawMagnifyingGlass(mouse){
+            var scaledMagnifyRectangle = null;
+
+            magnifyGlassX = mouse.x;
+            magnifyGlassY = mouse.y;
+            maginfyRectangle.x = mouse.x - magnifyingGlassRadius;
+            maginfyRectangle.y = mouse.y - magnifyingGlassRadius;
+
+            //calculateMagnifyRectangle(mouse);
+            if(maginfyRectangle.x < 0)
+                maginfyRectangle.x  = 0;
+            if(maginfyRectangle.y < 0)
+                maginfyRectangle.y  = 0;
+
+            imagedata = context.getImageData(maginfyRectangle.x,
+                                             maginfyRectangle.y,
+                                             maginfyRectangle.width,
+                                             maginfyRectangle.height);//获取放大镜图像数据
+            context.save();
+
+            scaledMagnifyRectangle = {
+                width : maginfyRectangle.width * magnificationScale,
+                height : maginfyRectangle.height * magnificationScale
+            };
+
+            setClip();
+
+            context.drawImage(canvas,
+                              maginfyRectangle.x,maginfyRectangle.y,//原图剪切坐标
+                              maginfyRectangle.width,maginfyRectangle.height,//原图剪切大小
+                              maginfyRectangle.x + maginfyRectangle.width/2 - scaledMagnifyRectangle.width/2,
+                              maginfyRectangle.y + maginfyRectangle.height/2 - scaledMagnifyRectangle.height/2,//放大的镜绘制的图像坐标  为圆心坐标减去放大后图片的高宽
+                              scaledMagnifyRectangle.width,
+                              scaledMagnifyRectangle.height);//放大后图片的高宽
+            context.restore();
+           // drawMagnifyingGlassCircle(mouse);
+        }
+
+        function drawMagnifyingGlassCircle(mouse){ 
+            context.save();
+            context.drawImage(canvas,maginfyRectangle.x,maginfyRectangle.y,
+                              maginfyRectangle.width,maginfyRectangle.height)
+            context.restore();
+        }
+
+        function setClip(){
+            context.beginPath();
+            context.arc(magnifyGlassX,magnifyGlassY,magnifyingGlassRadius,0,Math.PI * 2,false);
+            context.clip();
+        }
+
+        canvas.addEventListener('dragenter',function(e){
+            e.preventDefault();
+            e.dataTransfer.effectAllowed = 'copy';
+        },false);
+        canvas.addEventListener('dragover',function(e){
+            e.preventDefault();
+
+        },false);
+
+        window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
+
+        canvas.addEventListener('drop',function(e){
+            e.preventDefault();
+            e.stopPropagation();
+            var file = e.dataTransfer.files[0];
+
+            window.requestFileSystem(window.TEMPORRY,5*1024*1024,
+                function(fs){
+                    fs.root.getFile(file.name,{create:true},
+                        function(fileEntry){
+                            fileEntry.createWriter(function(writer){
+                                writer.write(file);
+                            });
+                            image.src = fileEntry.toURL();
+                            imagedata = null;
+                        },
+                        function(e){
+                            alert(e.code);
+                        });
+                },
+                function(e){
+                    alert(e.code);
+                })
+        })
+        canvas.onmousemove = function(e){
+                earseMagnifyingGlass();
+                drawMagnifyingGlass(windowToCanvas(canvas,e.clientX,e.clientY));
+                
+        }
+        image.src= "1.jpg";
+        image.onload = function(){
+            context.drawImage(image,0,0,image.width,image.height,0,0,canvas.width,canvas.height);
+        }
+
+    </script>
+</html>
